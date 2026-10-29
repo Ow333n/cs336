@@ -9,7 +9,8 @@ from cs336_basics.model import (
     scaled_dot_product_attention,
     MultiHeadSelfAttention,
     RotaryPositionalEmbedding,
-    TransformerBlock
+    TransformerBlock,
+    TransformerLM
 )
 import os
 from collections.abc import Iterable
@@ -405,7 +406,37 @@ def run_transformer_lm(
         Float[Tensor, "batch_size sequence_length vocab_size"]: Tensor with the predicted unnormalized
         next-word distribution for each token.
     """
-    raise NotImplementedError
+    model = TransformerLM(
+        vocab_size, context_length, d_model,
+        num_layers, num_heads, d_ff, rope_theta
+    )
+
+    mapped_weights = {
+        'token_embeddings.embedding': weights['token_embeddings.weight'],
+        'norm.weights': weights['ln_final.weight'],
+        'lm_head.weights': weights['lm_head.weight']
+    }
+
+    for i in range(num_layers):
+        prefix = f'layers.{i}'
+
+        # RMSNorm
+        mapped_weights[f'{prefix}.norm1.weights'] = weights[f'{prefix}.ln1.weight']
+        mapped_weights[f'{prefix}.norm2.weights'] = weights[f'{prefix}.ln2.weight']
+
+        # Multi-Head Attention
+        mapped_weights[f'{prefix}.attn.q_proj.weights'] = weights[f'{prefix}.attn.q_proj.weight']
+        mapped_weights[f'{prefix}.attn.k_proj.weights'] = weights[f'{prefix}.attn.k_proj.weight']
+        mapped_weights[f'{prefix}.attn.v_proj.weights'] = weights[f'{prefix}.attn.v_proj.weight']
+        mapped_weights[f'{prefix}.attn.o_proj.weights'] = weights[f'{prefix}.attn.output_proj.weight']
+
+        # SwiGLU
+        mapped_weights[f'{prefix}.ffn.w1.weights'] = weights[f'{prefix}.ffn.w1.weight']
+        mapped_weights[f'{prefix}.ffn.w2.weights'] = weights[f'{prefix}.ffn.w2.weight']
+        mapped_weights[f'{prefix}.ffn.w3.weights'] = weights[f'{prefix}.ffn.w3.weight']
+
+    model.load_state_dict(mapped_weights)
+    return model(in_indices)
 
 
 def run_rmsnorm(
