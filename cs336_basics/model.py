@@ -158,3 +158,15 @@ class RotaryPositionalEmbedding(nn.Module):
 		return merged
 
 
+class TransformerBlock(nn.Module):
+	def __init__(self, d_model, num_heads, d_ff, theta, max_seq_len):
+		super().__init__()
+		self.norm1 = RMSNorm(d_model)
+		self.attn = MultiHeadSelfAttention(d_model, num_heads, theta, max_seq_len)
+		self.norm2 = RMSNorm(d_model)
+		self.ffn = SwiGLU(d_model, d_ff)
+
+	def forward(self, x, token_positions = None):
+		h = x + self.attn(self.norm1(x), token_positions)
+		y = h + self.ffn(self.norm2(h))
+		return y
