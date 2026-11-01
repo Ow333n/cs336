@@ -196,3 +196,35 @@ class TransformerLM(nn.Module):
         hs2 = self.norm(hs1)
         logits = self.lm_head(hs2)
         return logits
+
+
+def cross_entropy(logits, targets):
+    m = logits.max(dim = -1, keepdim = True).values
+    shifted_logits = logits - m
+    lse = torch.log(torch.sum(torch.exp(shifted_logits), dim = -1))
+
+    targets = targets.unsqueeze(-1)
+    gather = torch.gather(shifted_logits, dim = -1, index = targets)
+    gather = gather.squeeze(-1)
+    ce = lse - gather
+
+    return ce.mean()
+
+def gradient_clipping(parameters, max_l2_norm, eps = 1e-5):
+    parameters = list(parameters)
+    total = 0
+    for para in parameters:
+        if para.grad is not None:
+            total += torch.sum(para.grad ** 2)
+    if total == 0:
+        return
+    sqrt_total = torch.sqrt(total)
+    if sqrt_total > max_l2_norm:
+        scale = max_l2_norm / (sqrt_total + eps)
+
+        with torch.no_grad():
+            for para in parameters:
+                if para.grad is not None:
+                    para.grad.mul_(scale)
+
+
